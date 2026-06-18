@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Working Capital &amp; AR Console</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --dark: #1a2233;
+      --accent: #d4a843;
+      --danger: #e05252;
+      --success: #3ba55c;
+      --muted: #6c7a8e;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Google Sans', Arial, sans-serif; background: var(--bg); color: var(--dark); font-size: 13px; }
+
+    /* ── Header ── */
+    header {
+      background: var(--dark); color: #fff; padding: 10px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    header h1 { font-size: 15px; font-weight: 600; }
+    header .sub { font-size: 11px; color: #8fa0b8; margin-top: 2px; }
+    header .badge {
+      background: #fff; color: var(--dark); font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 4px; letter-spacing: 1px;
+    }
+
+    /* ── Filters ── */
+    .filters {
+      background: #fff; border-bottom: 1px solid var(--border);
+      padding: 8px 20px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    .filter-group { display: flex; gap: 4px; align-items: center; }
+    .filter-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-right: 4px; }
+    .chip {
+      padding: 3px 10px; border-radius: 20px; border: 1px solid var(--border);
+      background: #f0f4f8; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .chip.active { background: var(--dark); color: #fff; border-color: var(--dark); }
+
+
+    /* ── Tabs ── */
+    .tab-bar {
+      background: #fff; border-bottom: 2px solid var(--border);
+      display: flex; padding: 0 20px; gap: 0;
+    }
+    .tab-btn {
+      padding: 10px 18px; font-size: 12px; font-weight: 600; cursor: pointer;
+      border: none; background: none; color: var(--muted);
+      border-bottom: 2px solid transparent; margin-bottom: -2px;
+    }
+    .tab-btn.active { color: var(--dark); border-bottom-color: var(--dark); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Detail table ── */
+    .detail-wrap { padding: 16px 20px; }
+    .detail-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+    .detail-search {
+      padding: 6px 12px 6px 32px; border: 1px solid var(--border); border-radius: 20px;
+      font-size: 12px; outline: none; width: 240px; background: #f8fafc;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236c7a8e' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: 10px center;
+      transition: border-color .15s;
+    }
+    .detail-search:focus { border-color: var(--dark); background-color: #fff; }
+    .detail-count { font-size: 11px; color: var(--muted); }
+    .detail-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; color: var(--dark); }
+    .detail-title span { font-weight: 400; color: var(--muted); font-size: 11px; margin-left: 8px; }
+    table.detail { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.detail th {
+      text-align: left; padding: 6px 10px; font-size: 10px; font-weight: 700;
+      letter-spacing: .5px; color: var(--muted); text-transform: uppercase;
+      border-bottom: 2px solid var(--border); background: #f8fafc;
+    }
+    table.detail td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+    table.detail tr:last-child td { border-bottom: none; }
+    table.detail tr:hover td { background: #f8fafc; }
+    table.detail td.amt { font-weight: 600; text-align: right; }
+    table.detail td.status { font-size: 11px; }
+    .badge-status {
+      padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;
+      background: #fef3c7; color: #92400e; display: inline-block;
+    }
+
+    /* ── Summary cards ── */
+    .cards { display: flex; gap: 12px; padding: 16px 20px; flex-wrap: wrap; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px 18px; flex: 1; min-width: 160px;
+    }
+    .card.highlight { border-color: var(--accent); }
+    .card .label { font-size: 10px; font-weight: 700; letter-spacing: .5px; color: var(--muted); text-transform: uppercase; }
+    .card .value { font-size: 28px; font-weight: 700; margin: 6px 0 2px; }
+    .card .sub { font-size: 11px; color: var(--muted); }
+    .card .delta {
+      font-size: 11px; font-weight: 600; margin-top: 4px;
+      display: flex; align-items: center; gap: 3px;
+    }
+    .delta.up   { color: var(--danger); }   /* AR going up = more receivables = bad */
+    .delta.down { color: var(--success); }  /* AR going down = collected = good */
+    .delta.flat { color: var(--muted); }
+    .delta-arrow { font-size: 10px; }
+
+    /* ── Chart ── */
+    .chart-wrap { padding: 0 20px 24px; }
+    .chart-card { background: var(--card); border-radius: 8px; padding: 16px; }
+    .chart-card h2 { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+    .chart-card .chart-sub { font-size: 11px; color: var(--muted); margin-bottom: 10px; }
+    .chart-legend { display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+    .chart-legend span { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+    .dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+    .lead-time-wrap { position: relative; }
+
+    /* ── Loading overlay ── */
+    #loading { position: fixed; inset: 0; background: rgba(255,255,255,.85); display: flex; align-items: center; justify-content: center; z-index: 99; }
+    .spinner { width: 32px; height: 32px; border: 3px solid #e0e0e0; border-top-color: var(--dark); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading"><div class="spinner"></div></div>
+
+<!-- Header -->
+<header>
+  <div>
+    <h1>Working Capital &amp; AR Console</h1>
+    <div class="sub" id="headerSub">Billed vs Unbilled receivables · Intrepid SEA</div>
+  </div>
+  <div class="badge">CONFIDENTIAL</div>
+</header>
+
+<!-- Filters -->
+<div class="filters">
+  <div class="filter-group">
+    <span class="filter-label">Country</span>
+    <button class="chip active" data-filter="country" data-val="TH" onclick="setFilter(this,'country')">TH</button>
+  </div>
+
+  <div class="filter-group" style="margin-left:16px" id="bizClassGroup">
+    <span class="filter-label">Business Class</span>
+    <button class="chip active" data-filter="bizClass" data-val="" onclick="setFilter(this,'bizClass')">All</button>
+  </div>
+
+</div>
+
+<!-- Tab bar -->
+<div class="tab-bar">
+  <button class="tab-btn active" id="tabSummaryBtn" onclick="switchTab('summary')">Summary</button>
+  <button class="tab-btn" id="tabDetailBtn" onclick="switchTab('detail')">Unbilled Detail</button>
+</div>
+
+<!-- ══ TAB: Summary ══ -->
+<div class="tab-panel active" id="tabSummary">
+
+<!-- Summary cards -->
+<div class="cards">
+  <div class="card">
+    <div class="label">Total AR</div>
+    <div class="value" id="cTotalAR">—</div>
+    <div class="sub" id="cCountrySub">TH</div>
+  </div>
+  <div class="card highlight" style="cursor:pointer" onclick="switchTab('detail')" title="Click to see detail">
+    <div class="label">Unbilled (Accrued) ↗</div>
+    <div class="value" id="cUnbilled">—</div>
+    <div class="sub" id="cUnbilledPct">—% of AR</div>
+  </div>
+  <div class="card highlight">
+    <div class="label">Invoiced Overdue</div>
+    <div class="value" id="cOverDue">—</div>
+    <div class="sub" id="cOverDueSub">—% of AR · past credit term</div>
+  </div>
+  <div class="card">
+    <div class="label">Under Credit Term</div>
+    <div class="value" id="cUnderTerm">—</div>
+    <div class="sub">invoiced, within payment term</div>
+  </div>
+  <div class="card">
+    <div class="label">Billed (Invoiced)</div>
+    <div class="value" id="cBilled">—</div>
+    <div class="sub">issued to customers</div>
+  </div>
+</div>
+
+<!-- Chart: Avg Lead Time -->
+<div class="chart-wrap" id="chartSection">
+  <div class="chart-card">
+    <h2>AVG LEAD TIME OF CLAIMBACK PROCESS (RETAIL &amp; MARKET PLACE)</h2>
+    <div class="chart-sub">Average days per stage · sorted by total (high → low)</div>
+    <div class="chart-legend">
+      <span><i class="dot" style="background:#4472c4"></i> 1. FIN prepared</span>
+      <span><i class="dot" style="background:#ed7d31"></i> 2. KAM/MKT reviewed</span>
+      <span><i class="dot" style="background:#ffc000"></i> 3. Brand reviewed</span>
+      <span><i class="dot" style="background:#5b9bd5"></i> 4. Issued invoice</span>
+      <span><i class="dot" style="background:#70ad47"></i> 5. Collected</span>
+    </div>
+    <div class="lead-time-wrap">
+      <canvas id="chartLeadTime"></canvas>
+    </div>
+  </div>
+</div>
+
+</div><!-- end #tabSummary -->
+
+<!-- ══ TAB: Unbilled Detail ══ -->
+<div class="tab-panel" id="tabDetail">
+  <div class="detail-wrap">
+    <div class="detail-title">Unbilled (Accrued) Receivables</div>
+    <div class="detail-toolbar">
+      <input class="detail-search" id="detailSearch" type="text" placeholder="Search period, brand, status…" oninput="filterDetailTable(this.value)" />
+      <span class="detail-count" id="detailCount"></span>
+    </div>
+    <table class="detail">
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th>Brand</th>
+          <th>Business Class</th>
+          <th style="text-align:right">Amount</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="detailBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Click "Unbilled (Accrued)" card to load…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+const filters = { country: 'TH', bizClass: '' };
+let   leadChart = null;
+let   detailLoaded = false;
+let   detailRows   = [];
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1) + 'Btn').classList.add('active');
+  if (tab === 'detail' && !detailLoaded) loadDetail();
+}
+
+function loadDetail() {
+  document.getElementById('detailBody').innerHTML =
+    '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Loading…</td></tr>';
+  google.script.run
+    .withSuccessHandler(renderDetail)
+    .withFailureHandler(err => {
+      document.getElementById('detailBody').innerHTML =
+        `<tr><td colspan="5" style="color:var(--danger);padding:12px">${err.message}</td></tr>`;
+    })
+    .getDetailRows({ country: filters.country, bizClass: filters.bizClass || null });
+}
+
+function renderDetail(rows) {
+  detailLoaded = true;
+  detailRows = rows;
+  document.getElementById('detailSearch').value = '';
+  renderDetailRows(rows);
+}
+
+function filterDetailTable(q) {
+  const lq = q.toLowerCase().trim();
+  const filtered = !lq ? detailRows : detailRows.filter(r =>
+    (fmtPeriod(r.period) || '').toLowerCase().includes(lq) ||
+    (r.brand  || '').toLowerCase().includes(lq) ||
+    (r.type   || '').toLowerCase().includes(lq) ||
+    (r.status || '').toLowerCase().includes(lq)
+  );
+  renderDetailRows(filtered);
+}
+
+function renderDetailRows(rows) {
+  const count = document.getElementById('detailCount');
+  const total = detailRows.length;
+  count.textContent = rows.length === total
+    ? `${total} items`
+    : `${rows.length} of ${total} items`;
+
+  if (!rows.length) {
+    document.getElementById('detailBody').innerHTML =
+      '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">No results.</td></tr>';
+    return;
+  }
+  document.getElementById('detailBody').innerHTML = rows.map(r => `
+    <tr>
+      <td>${fmtPeriod(r.period)}</td>
+      <td>${r.brand || '—'}</td>
+      <td>${r.type  || '—'}</td>
+      <td class="amt">${fmt(r.amount)}</td>
+      <td class="status"><span class="badge-status">${r.status || 'Pending'}</span></td>
+    </tr>`).join('');
+}
+
+// ─── Business class chips (dynamic) ──────────────────────────────────────────
+function renderBizChips(types) {
+  const group = document.getElementById('bizClassGroup');
+  // Remove old chips except "All"
+  [...group.querySelectorAll('[data-val]:not([data-val=""])')].forEach(el => el.remove());
+  types.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'chip';
+    btn.dataset.filter = 'bizClass';
+    btn.dataset.val = t;
+    btn.textContent = t;
+    btn.onclick = () => setFilter(btn, 'bizClass');
+    group.appendChild(btn);
+  });
+  // Restore active state
+  group.querySelectorAll('[data-filter="bizClass"]').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === (filters.bizClass || ''));
+  });
+}
+
+// ─── Filter controls ─────────────────────────────────────────────────────────
+function setFilter(el, key) {
+  document.querySelectorAll(`[data-filter="${key}"]`).forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  filters[key] = el.dataset.val;
+  detailLoaded = false; // force detail reload on next visit
+  loadData();
+}
+
+function fmtPeriod(p) {
+  if (!p) return '—';
+  const m = p.match(/^(\d{4})\s+([A-Za-z]{3})$/);
+  return m ? m[2] + ' ' + m[1] : p;
+}
+
+// ─── Data loading ─────────────────────────────────────────────────────────────
+function loadData() {
+  document.getElementById('loading').style.display = 'flex';
+  google.script.run
+    .withSuccessHandler(render)
+    .withFailureHandler(err => {
+      document.getElementById('statusBar').textContent = '⚠ Error: ' + err.message;
+      document.getElementById('loading').style.display = 'none';
+    })
+    .getReportData({ country: filters.country, bizClass: filters.bizClass || null });
+}
+
+// ─── Formatting ───────────────────────────────────────────────────────────────
+function fmt(n) {
+  if (n === undefined || n === null) return '—';
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1e6) return sign + '$' + (abs / 1e6).toFixed(2) + 'M';
+  if (abs >= 1e3) return sign + '$' + (abs / 1e3).toFixed(1) + 'K';
+  return sign + '$' + Math.round(abs);
+}
+
+function pct(n) {
+  if (!isFinite(n)) return '—%';
+  return (Math.min(Math.max(n, 0), 1) * 100).toFixed(1) + '%';
+}
+
+function fmtDelta(d, invertColor) {
+  if (d === null || d === undefined) return '';
+  const abs = Math.abs(d);
+  const isUp = d > 0;
+  const cls  = d === 0 ? 'flat' : (isUp === !invertColor ? 'up' : 'down');
+  const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '●';
+  const label = fmt(Math.abs(d));
+  return { cls, html: `<span class="delta-arrow">${arrow}</span> ${label} vs prev month` };
+}
+
+function setDelta(elId, delta, invertColor) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const r = fmtDelta(delta, invertColor);
+  if (!r) { el.innerHTML = ''; return; }
+  el.className = 'delta ' + r.cls;
+  el.innerHTML = r.html;
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function render(d) {
+  // Update business class chips from actual data
+  if (d.types && d.types.length) renderBizChips(d.types);
+
+  const s = d.summary;
+  const dt = d.delta || {};
+
+  // Cards
+  document.getElementById('cTotalAR').textContent    = fmt(s.totalAR);
+  document.getElementById('cCountrySub').textContent = filters.country || 'TH';
+
+  document.getElementById('cUnbilled').textContent    = fmt(s.unbilled);
+  document.getElementById('cUnbilledPct').textContent = pct(s.unbilledPct) + ' of AR';
+
+  document.getElementById('cOverDue').textContent    = fmt(s.overDue);
+  document.getElementById('cOverDueSub').textContent = pct(s.totalAR > 0 ? s.overDue / s.totalAR : 0) + ' of AR · past credit term';
+
+  document.getElementById('cUnderTerm').textContent = fmt(s.underTerm);
+  document.getElementById('cBilled').textContent    = fmt(s.billed);
+
+  document.getElementById('headerSub').textContent =
+    `Billed vs Unbilled receivables · ${filters.country}`;
+
+  renderLeadTimeChart(d.leadTime);
+  document.getElementById('loading').style.display = 'none';
+}
+
+// ─── Lead time chart ──────────────────────────────────────────────────────────
+function renderLeadTimeChart(lt) {
+  if (leadChart) { leadChart.destroy(); leadChart = null; }
+  Chart.unregister({ id: 'totalLabels' }); // remove stale plugin if any
+  if (!lt || !lt.length) return;
+
+  const labels = lt.map(r => r.brand);
+  const fields = ['fin', 'kam', 'brand_r', 'invoice', 'collect'];
+  const names  = ['1. FIN prepared', '2. KAM/MKT reviewed', '3. Brand reviewed', '4. Issued invoice', '5. Collected'];
+  const colors = ['#4472c4', '#ed7d31', '#ffc000', '#5b9bd5', '#70ad47'];
+
+  document.querySelector('.lead-time-wrap').style.height = (lt.length * 28 + 40) + 'px';
+
+  const totals = lt.map(r => +(r.fin + r.kam + r.brand_r + r.invoice + r.collect).toFixed(1));
+  const maxTotal = Math.max(...totals);
+
+  const canvas = document.getElementById('chartLeadTime');
+  leadChart = new Chart(canvas, {
+    type: 'bar',
+    plugins: [ChartDataLabels],
+    data: {
+      labels,
+      datasets: fields.map((f, i) => ({
+        label: names[i],
+        data: lt.map(r => r[f]),
+        backgroundColor: colors[i],
+        stack: 's',
+        maxBarThickness: 16,
+        datalabels: {
+          display: ctx => ctx.dataset.data[ctx.dataIndex] >= 0.3,
+          color: ctx => {
+            const v   = ctx.dataset.data[ctx.dataIndex];
+            const tot = totals[ctx.dataIndex] || 1;
+            return (v / tot) < 0.07 ? '#333' : '#fff';
+          },
+          font: { size: 9, weight: 'bold' },
+          formatter: v => v,
+          anchor: ctx => (ctx.dataset.data[ctx.dataIndex] / (totals[ctx.dataIndex]||1)) < 0.07 ? 'end' : 'center',
+          align:  ctx => (ctx.dataset.data[ctx.dataIndex] / (totals[ctx.dataIndex]||1)) < 0.07 ? 'top'  : 'center',
+          offset: ctx => (ctx.dataset.data[ctx.dataIndex] / (totals[ctx.dataIndex]||1)) < 0.07 ? 2     : 0,
+          clamp: false,
+          textStrokeColor: 'rgba(0,0,0,0.25)',
+          textStrokeWidth: 2,
+        },
+      })),
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { right: 52 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw} days` },
+        },
+        datalabels: {},
+      },
+      scales: {
+        x: {
+          stacked: true,
+          min: 0,
+          max: Math.ceil(maxTotal * 1.08),
+          grid: { display: false },
+          border: { display: false },
+          ticks: { display: false },
+        },
+        y: {
+          stacked: true,
+          grid: { display: false },
+          border: { display: false },
+        },
+      },
+    },
+    // Draw totals manually after chart renders
+  });
+
+  // Draw total labels at end of each bar
+  const totalPlugin = {
+    id: 'totalLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx, scales: { x, y } } = chart;
+      ctx.save();
+      ctx.font = '600 11px Arial';
+      ctx.fillStyle = '#444';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      totals.forEach((total, i) => {
+        const xPos = x.getPixelForValue(total) + 6;
+        const yPos = y.getPixelForValue(labels[i]);
+        ctx.fillText(total, xPos, yPos);
+      });
+      ctx.restore();
+    },
+  };
+  Chart.register(totalPlugin);
+  leadChart.update();
+}
+
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+window.onload = loadData;
+</script>
+</body>
+</html>
