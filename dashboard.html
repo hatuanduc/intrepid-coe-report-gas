@@ -157,6 +157,7 @@
 <div class="tab-bar">
   <button class="tab-btn active" id="tabSummaryBtn" onclick="switchTab('summary')">Summary</button>
   <button class="tab-btn" id="tabDetailBtn" onclick="switchTab('detail')">Unbilled Detail</button>
+  <button class="tab-btn" id="tabOverdueBtn" onclick="switchTab('overdue')">Invoiced Overdue</button>
 </div>
 
 <!-- ══ TAB: Summary ══ -->
@@ -174,8 +175,8 @@
     <div class="value" id="cUnbilled">—</div>
     <div class="sub" id="cUnbilledPct">—% of AR</div>
   </div>
-  <div class="card highlight">
-    <div class="label">Invoiced Overdue</div>
+  <div class="card highlight" style="cursor:pointer" onclick="switchTab('overdue')" title="Click to see detail">
+    <div class="label">Invoiced Overdue ↗</div>
     <div class="value" id="cOverDue">—</div>
     <div class="sub" id="cOverDueSub">—% of AR · past credit term</div>
   </div>
@@ -184,27 +185,20 @@
     <div class="value" id="cUnderTerm">—</div>
     <div class="sub">invoiced, within payment term</div>
   </div>
-  <div class="card">
-    <div class="label">Billed (Invoiced)</div>
-    <div class="value" id="cBilled">—</div>
-    <div class="sub">issued to customers</div>
-  </div>
 </div>
 
-<!-- Chart: Avg Lead Time -->
-<div class="chart-wrap" id="chartSection">
+<!-- Chart: AR by Brand & Status -->
+<div class="chart-wrap">
   <div class="chart-card">
-    <h2>AVG LEAD TIME OF CLAIMBACK PROCESS (RETAIL &amp; MARKET PLACE)</h2>
-    <div class="chart-sub">Average days per stage · sorted by total (high → low)</div>
+    <h2>OUTSTANDING ITEMS BY BRAND</h2>
+    <div class="chart-sub">Number of pending rows per brand · sorted by total</div>
     <div class="chart-legend">
-      <span><i class="dot" style="background:#4472c4"></i> 1. FIN prepared</span>
-      <span><i class="dot" style="background:#ed7d31"></i> 2. KAM/MKT reviewed</span>
-      <span><i class="dot" style="background:#ffc000"></i> 3. Brand reviewed</span>
-      <span><i class="dot" style="background:#5b9bd5"></i> 4. Issued invoice</span>
-      <span><i class="dot" style="background:#70ad47"></i> 5. Collected</span>
+      <span><i class="dot" style="background:#ffc000"></i> Unbilled (Accrued)</span>
+      <span><i class="dot" style="background:#e05252"></i> Invoiced Overdue</span>
+      <span><i class="dot" style="background:#4472c4"></i> Under Credit Term</span>
     </div>
-    <div class="lead-time-wrap">
-      <canvas id="chartLeadTime"></canvas>
+    <div class="lead-time-wrap" id="arChartWrap">
+      <canvas id="chartAR"></canvas>
     </div>
   </div>
 </div>
@@ -234,12 +228,34 @@
   </div>
 </div>
 
+<!-- ══ TAB: Overdue ══ -->
+<div class="tab-panel" id="tabOverdue">
+  <div class="detail-wrap">
+    <div class="detail-title">Invoiced Overdue Receivables</div>
+    <div class="detail-toolbar">
+      <input class="detail-search" id="overdueSearch" type="text" placeholder="Search period, brand, status…" oninput="filterOverdueTable(this.value)" />
+      <span class="detail-count" id="overdueCount"></span>
+    </div>
+    <table class="detail">
+      <thead>
+        <tr>
+          <th>Period</th><th>Brand</th><th>Business Class</th>
+          <th style="text-align:right">Amount</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="overdueBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Click "Invoiced Overdue" tab to load…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
 <script>
 // ─── State ───────────────────────────────────────────────────────────────────
 const filters = { country: 'TH', bizClass: '' };
-let   leadChart = null;
-let   detailLoaded = false;
-let   detailRows   = [];
+let   arChart = null;
+let   detailLoaded  = false;
+let   detailRows    = [];
+let   overdueLoaded = false;
+let   overdueRows   = [];
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 function switchTab(tab) {
@@ -247,7 +263,8 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
   document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1) + 'Btn').classList.add('active');
-  if (tab === 'detail' && !detailLoaded) loadDetail();
+  if (tab === 'detail'  && !detailLoaded)  loadDetail();
+  if (tab === 'overdue' && !overdueLoaded) loadOverdue();
 }
 
 function loadDetail() {
@@ -278,6 +295,53 @@ function filterDetailTable(q) {
     (r.status || '').toLowerCase().includes(lq)
   );
   renderDetailRows(filtered);
+}
+
+// ─── Overdue tab ─────────────────────────────────────────────────────────────
+function loadOverdue() {
+  document.getElementById('overdueBody').innerHTML =
+    '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Loading…</td></tr>';
+  google.script.run
+    .withSuccessHandler(rows => {
+      overdueLoaded = true;
+      overdueRows = rows;
+      document.getElementById('overdueSearch').value = '';
+      renderOverdueRows(rows);
+    })
+    .withFailureHandler(err => {
+      document.getElementById('overdueBody').innerHTML =
+        `<tr><td colspan="5" style="color:var(--danger);padding:12px">${err.message}</td></tr>`;
+    })
+    .getOverdueRows({ country: filters.country, bizClass: filters.bizClass || null });
+}
+
+function filterOverdueTable(q) {
+  const lq = q.toLowerCase().trim();
+  renderOverdueRows(!lq ? overdueRows : overdueRows.filter(r =>
+    (fmtPeriod(r.period)||'').toLowerCase().includes(lq) ||
+    (r.brand||'').toLowerCase().includes(lq) ||
+    (r.type||'').toLowerCase().includes(lq) ||
+    (r.status||'').toLowerCase().includes(lq)
+  ));
+}
+
+function renderOverdueRows(rows) {
+  const total = overdueRows.length;
+  document.getElementById('overdueCount').textContent =
+    rows.length === total ? `${total} items` : `${rows.length} of ${total} items`;
+  if (!rows.length) {
+    document.getElementById('overdueBody').innerHTML =
+      '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">No overdue rows found.</td></tr>';
+    return;
+  }
+  document.getElementById('overdueBody').innerHTML = rows.map(r => `
+    <tr>
+      <td>${fmtPeriod(r.period)}</td>
+      <td>${r.brand||'—'}</td>
+      <td>${r.type||'—'}</td>
+      <td class="amt">${fmt(r.amount)}</td>
+      <td class="status"><span class="badge-status" style="background:#fee2e2;color:#991b1b">${r.status||'Overdue'}</span></td>
+    </tr>`).join('');
 }
 
 function renderDetailRows(rows) {
@@ -327,7 +391,7 @@ function setFilter(el, key) {
   document.querySelectorAll(`[data-filter="${key}"]`).forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   filters[key] = el.dataset.val;
-  detailLoaded = false; // force detail reload on next visit
+  detailLoaded = overdueLoaded = false; // force reload on filter change
   loadData();
 }
 
@@ -402,95 +466,41 @@ function render(d) {
   document.getElementById('cOverDueSub').textContent = pct(s.totalAR > 0 ? s.overDue / s.totalAR : 0) + ' of AR · past credit term';
 
   document.getElementById('cUnderTerm').textContent = fmt(s.underTerm);
-  document.getElementById('cBilled').textContent    = fmt(s.billed);
 
   document.getElementById('headerSub').textContent =
     `Billed vs Unbilled receivables · ${filters.country}`;
 
-  renderLeadTimeChart(d.leadTime);
+  renderARChart(d.arByBrand);
   document.getElementById('loading').style.display = 'none';
 }
 
-// ─── Lead time chart ──────────────────────────────────────────────────────────
-function renderLeadTimeChart(lt) {
-  if (leadChart) { leadChart.destroy(); leadChart = null; }
-  Chart.unregister({ id: 'totalLabels' }); // remove stale plugin if any
-  if (!lt || !lt.length) return;
+// ─── AR by Brand / Status chart ───────────────────────────────────────────────
+function renderARChart(data) {
+  if (arChart) { arChart.destroy(); arChart = null; }
+  if (!data || !data.length) return;
 
-  const labels = lt.map(r => r.brand);
-  const fields = ['fin', 'kam', 'brand_r', 'invoice', 'collect'];
-  const names  = ['1. FIN prepared', '2. KAM/MKT reviewed', '3. Brand reviewed', '4. Issued invoice', '5. Collected'];
-  const colors = ['#4472c4', '#ed7d31', '#ffc000', '#5b9bd5', '#70ad47'];
+  // Filter to brands with any non-zero amount
+  const visible = data.filter(r => r.unbilled || r.overdue || r.underTerm);
+  if (!visible.length) return;
 
-  document.querySelector('.lead-time-wrap').style.height = (lt.length * 28 + 40) + 'px';
+  const labels = visible.map(r => r.brand);
+  const totals = visible.map(r => r.unbilled + r.overdue + r.underTerm);
+  const maxVal = Math.max(...totals);
 
-  const totals = lt.map(r => +(r.fin + r.kam + r.brand_r + r.invoice + r.collect).toFixed(1));
-  const maxTotal = Math.max(...totals);
+  document.getElementById('arChartWrap').style.height = (visible.length * 28 + 40) + 'px';
 
-  const canvas = document.getElementById('chartLeadTime');
-  leadChart = new Chart(canvas, {
-    type: 'bar',
-    plugins: [ChartDataLabels],
-    data: {
-      labels,
-      datasets: fields.map((f, i) => ({
-        label: names[i],
-        data: lt.map(r => r[f]),
-        backgroundColor: colors[i],
-        stack: 's',
-        maxBarThickness: 16,
-        datalabels: {
-          display: ctx => ctx.dataset.data[ctx.dataIndex] >= 0.3,
-          color: ctx => {
-            const v   = ctx.dataset.data[ctx.dataIndex];
-            const tot = totals[ctx.dataIndex] || 1;
-            return (v / tot) < 0.07 ? '#333' : '#fff';
-          },
-          font: { size: 9, weight: 'bold' },
-          formatter: v => v,
-          anchor: ctx => (ctx.dataset.data[ctx.dataIndex] / (totals[ctx.dataIndex]||1)) < 0.07 ? 'end' : 'center',
-          align:  ctx => (ctx.dataset.data[ctx.dataIndex] / (totals[ctx.dataIndex]||1)) < 0.07 ? 'top'  : 'center',
-          offset: ctx => (ctx.dataset.data[ctx.dataIndex] / (totals[ctx.dataIndex]||1)) < 0.07 ? 2     : 0,
-          clamp: false,
-          textStrokeColor: 'rgba(0,0,0,0.25)',
-          textStrokeWidth: 2,
-        },
-      })),
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      layout: { padding: { right: 52 } },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw} days` },
-        },
-        datalabels: {},
-      },
-      scales: {
-        x: {
-          stacked: true,
-          min: 0,
-          max: Math.ceil(maxTotal * 1.08),
-          grid: { display: false },
-          border: { display: false },
-          ticks: { display: false },
-        },
-        y: {
-          stacked: true,
-          grid: { display: false },
-          border: { display: false },
-        },
-      },
-    },
-    // Draw totals manually after chart renders
+  const dlOpts = (color) => ({
+    display: ctx => ctx.dataset.data[ctx.dataIndex] > 0,
+    color,
+    font: { size: 9, weight: 'bold' },
+    formatter: v => v,
+    anchor: 'center', align: 'center', clamp: false,
+    textStrokeColor: 'rgba(0,0,0,0.2)', textStrokeWidth: 2,
   });
 
-  // Draw total labels at end of each bar
-  const totalPlugin = {
-    id: 'totalLabels',
+  // Inline total-label plugin (instance-scoped, no global registration)
+  const totalLabelsPlugin = {
+    id: 'arTotals',
     afterDatasetsDraw(chart) {
       const { ctx, scales: { x, y } } = chart;
       ctx.save();
@@ -498,17 +508,43 @@ function renderLeadTimeChart(lt) {
       ctx.fillStyle = '#444';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      totals.forEach((total, i) => {
-        const xPos = x.getPixelForValue(total) + 6;
-        const yPos = y.getPixelForValue(labels[i]);
-        ctx.fillText(total, xPos, yPos);
+      totals.forEach((t, i) => {
+        if (t) ctx.fillText(t + ' items', x.getPixelForValue(t) + 6, y.getPixelForValue(labels[i]));
       });
       ctx.restore();
     },
   };
-  Chart.register(totalPlugin);
-  leadChart.update();
+
+  arChart = new Chart(document.getElementById('chartAR'), {
+    type: 'bar',
+    plugins: [ChartDataLabels, totalLabelsPlugin],
+    data: {
+      labels,
+      datasets: [
+        { label: 'Unbilled (Accrued)',  data: visible.map(r => r.unbilled),  backgroundColor: '#ffc000', stack: 's', maxBarThickness: 16, datalabels: dlOpts('#fff') },
+        { label: 'Invoiced Overdue',    data: visible.map(r => r.overdue),   backgroundColor: '#e05252', stack: 's', maxBarThickness: 16, datalabels: dlOpts('#fff') },
+        { label: 'Under Credit Term',   data: visible.map(r => r.underTerm), backgroundColor: '#4472c4', stack: 's', maxBarThickness: 16, datalabels: dlOpts('#fff') },
+      ],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { right: 72 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw} items` } },
+        datalabels: {},
+      },
+      scales: {
+        x: { stacked: true, min: 0, max: maxVal * 1.12,
+             grid: { display: false }, border: { display: false }, ticks: { display: false } },
+        y: { stacked: true, grid: { display: false }, border: { display: false } },
+      },
+    },
+  });
 }
+
 
 
 // ─── Init ─────────────────────────────────────────────────────────────────────

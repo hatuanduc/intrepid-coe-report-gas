@@ -59,9 +59,54 @@ function getReportData(params) {
 
   return {
     summary,
-    leadTime: _cachedLeadTime(country, bizClass),
+    leadTime:  _cachedLeadTime(country, bizClass),
+    arByBrand: _arByBrand(rows),
     types,
   };
+}
+
+/** AR breakdown by brand: row counts per status, sorted by total rows DESC */
+function _arByBrand(rows) {
+  const map = {};
+  rows.forEach(r => {
+    if (_isDate(r.collected)) return;
+    const b = r.brand || 'Unknown';
+    if (!map[b]) map[b] = { brand: b, unbilled: 0, overdue: 0, underTerm: 0 };
+    if      (!_isDate(r.issued))             map[b].unbilled++;
+    else if (r.status === STATUS.OVER_DUE)   map[b].overdue++;
+    else if (r.status === STATUS.UNDER_TERM) map[b].underTerm++;
+  });
+  return Object.values(map)
+    .filter(r => r.unbilled + r.overdue + r.underTerm > 0)
+    .sort((a, b) => (b.unbilled + b.overdue + b.underTerm) - (a.unbilled + a.overdue + a.underTerm));
+}
+
+/** Returns overdue rows (issued, not collected, status = overdue). */
+function getOverdueRows(params) {
+  params = params || {};
+  const country  = (params.country  || 'TH').toUpperCase();
+  const bizClass = params.bizClass  || null;
+
+  const allRows = _cachedRows(country);
+  return allRows
+    .filter(r =>
+      (!bizClass || r.type === bizClass) &&
+      !_isDate(r.collected) &&
+       _isDate(r.issued) &&
+      r.status === STATUS.OVER_DUE
+    )
+    .map(r => ({
+      period:     r.period,
+      periodSort: _periodToNum(r.period),
+      brand:      r.brand,
+      type:       r.type,
+      amount:     r.amount,
+      status:     r.status,
+    }))
+    .sort((a, b) =>
+      b.periodSort - a.periodSort ||
+      (a.brand || '').localeCompare(b.brand || '')
+    );
 }
 
 /** Returns unbilled detail rows for the detail tab. */
