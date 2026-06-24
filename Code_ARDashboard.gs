@@ -30,7 +30,7 @@ const STATUS = {
 
 function doGet() {
   return HtmlService
-    .createTemplateFromFile('dashboard')
+    .createTemplateFromFile('dashboard_ARDashboard')
     .evaluate()
     .setTitle('Working Capital & AR Console')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -39,7 +39,7 @@ function doGet() {
 
 // ─── Main entry ───────────────────────────────────────────────────────────────
 
-function getReportData(params) {
+function AR_getReportData(params) {
   params = params || {};
   const country  = (params.country || 'TH').toUpperCase();
   const bizClass = params.bizClass || null;
@@ -82,7 +82,7 @@ function _arByBrand(rows) {
 }
 
 /** Returns overdue rows (issued, not collected, status = overdue). */
-function getOverdueRows(params) {
+function AR_getOverdueRows(params) {
   params = params || {};
   const country  = (params.country  || 'TH').toUpperCase();
   const bizClass = params.bizClass  || null;
@@ -110,7 +110,7 @@ function getOverdueRows(params) {
 }
 
 /** Returns unbilled detail rows for the detail tab. */
-function getDetailRows(params) {
+function AR_getDetailRows(params) {
   params = params || {};
   const country  = (params.country  || 'TH').toUpperCase();
   const bizClass = params.bizClass  || null;
@@ -168,7 +168,7 @@ function _cachedLeadTime(country, bizClass) {
 }
 
 /** Manual cache clear – run in GAS editor when you want fresh data immediately. */
-function clearCache() {
+function AR_clearCache() {
   CacheService.getScriptCache().removeAll(
     ['rows_TH','lt_TH_all','lt_TH_Retail','lt_TH_Consignment','lt_TH_Store Management']
   );
@@ -469,7 +469,7 @@ function _delta(c, p) {
 
 // ─── Debug ────────────────────────────────────────────────────────────────────
 
-function debugData() {
+function AR_debugData() {
   const rows = _readTHSheet('TH');
   Logger.log('=== Total rows: %s', rows.length);
 

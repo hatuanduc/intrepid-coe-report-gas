@@ -276,7 +276,7 @@ function loadDetail() {
       document.getElementById('detailBody').innerHTML =
         `<tr><td colspan="5" style="color:var(--danger);padding:12px">${err.message}</td></tr>`;
     })
-    .getDetailRows({ country: filters.country, bizClass: filters.bizClass || null });
+    .AR_getDetailRows({ country: filters.country, bizClass: filters.bizClass || null });
 }
 
 function renderDetail(rows) {
@@ -312,7 +312,7 @@ function loadOverdue() {
       document.getElementById('overdueBody').innerHTML =
         `<tr><td colspan="5" style="color:var(--danger);padding:12px">${err.message}</td></tr>`;
     })
-    .getOverdueRows({ country: filters.country, bizClass: filters.bizClass || null });
+    .AR_getOverdueRows({ country: filters.country, bizClass: filters.bizClass || null });
 }
 
 function filterOverdueTable(q) {
@@ -410,7 +410,7 @@ function loadData() {
       document.getElementById('statusBar').textContent = '⚠ Error: ' + err.message;
       document.getElementById('loading').style.display = 'none';
     })
-    .getReportData({ country: filters.country, bizClass: filters.bizClass || null });
+    .AR_getReportData({ country: filters.country, bizClass: filters.bizClass || null });
 }
 
 // ─── Formatting ───────────────────────────────────────────────────────────────
